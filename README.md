@@ -20,6 +20,7 @@ Keybinds:
 ``F6`` - Switch between normal desktop mode.
 
 Without holding ``LeftControl`` you are squeezing your hand.
+
 ``1-5`` - Left hand fingers
 
 ``6-0`` - Right hand fingers
