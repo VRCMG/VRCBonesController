@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31205.134
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VRCBonesController", "VRCBonesController\VRCBonesController.csproj", "{BF1E5EE4-B666-4AA2-8D17-520DCA8B62C3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BF1E5EE4-B666-4AA2-8D17-520DCA8B62C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF1E5EE4-B666-4AA2-8D17-520DCA8B62C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF1E5EE4-B666-4AA2-8D17-520DCA8B62C3}.Debug|x64.ActiveCfg = Debug|x64
+		{BF1E5EE4-B666-4AA2-8D17-520DCA8B62C3}.Debug|x64.Build.0 = Debug|x64
+		{BF1E5EE4-B666-4AA2-8D17-520DCA8B62C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF1E5EE4-B666-4AA2-8D17-520DCA8B62C3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BF1E5EE4-B666-4AA2-8D17-520DCA8B62C3}.Release|x64.ActiveCfg = Release|x64
+		{BF1E5EE4-B666-4AA2-8D17-520DCA8B62C3}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2F65E9C3-A72E-4114-8CAA-AAEC9A7A83D3}
+	EndGlobalSection
+EndGlobal
