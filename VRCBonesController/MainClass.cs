@@ -1,6 +1,14 @@
 ﻿using Il2CppSystem.Reflection;
+using LiteNetLib;
+using LiteNetLib.Utils;
+using MelonLoader;
+using RootMotion.FinalIK;
 using System;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Threading.Tasks;
 using UnhollowerRuntimeLib;
 using UnityEngine;
 
@@ -8,6 +16,8 @@ namespace VRCBonesController
 {
     public class MainClass : MelonLoader.MelonMod
     {
+        private EventBasedNetListener listener = new EventBasedNetListener();
+        private NetManager manager;
 
         readonly Quaternion c_hmdRotationFix = new Quaternion(0f, 0.7071068f, 0.7071068f, 0f);
 
@@ -46,8 +56,16 @@ namespace VRCBonesController
 
         public bool IsManualControl = false;
 
+        bool sync_Head = true;
+        bool sync_Hands = true;
+        bool sync_Fingers = true;
+        bool auto_connect = false;
+        bool is_connected = false;
+        bool avatar_sync = false;
+
         public override void OnApplicationStart()
         {
+
             ms_inVrMode = VRCTrackingManager.Method_Public_Static_Boolean_4();
             m_fingersBends = new float[10];
             m_fingersSpreads = new float[10];
@@ -62,6 +80,11 @@ namespace VRCBonesController
         }
 
 
+        bool isHost = true;
+        string token = "";
+        string host_ip = "";
+        int host_port = 7777;
+        string host_token = "-";
 
         public override void VRChat_OnUiManagerInit()
         {
@@ -70,7 +93,146 @@ namespace VRCBonesController
             var transform = camera.GetIl2CppType().GetFields(BindingFlags.Public | BindingFlags.Instance).Where(f => f.FieldType == Il2CppType.Of<Transform>()).ToArray()[0];
             cameraTransform = transform.GetValue(camera).Cast<Transform>();
             cameraTransformOriginal = cameraTransform.rotation;
+
+
         }
+
+        public override void OnPreferencesLoaded()
+        {
+            var prefCategory = MelonPreferences.CreateCategory("VRCBonesController", "VRCBonesController");
+            var p1 = prefCategory.CreateEntry<string>("host_ip", "localhost");
+            host_ip = p1.GetValueAsString();
+            var p2 = prefCategory.CreateEntry<int>("host_port", 7777);
+            int.TryParse(p2.GetValueAsString(), out host_port);
+            var p3 = prefCategory.CreateEntry<string>("host_token", "-");
+            host_token = p3.GetValueAsString();
+            var p4 = prefCategory.CreateEntry<bool>("sync_Head", true);
+            bool.TryParse(p4.GetValueAsString(), out sync_Head);
+            var p5 = prefCategory.CreateEntry<bool>("sync_Hands", true);
+            bool.TryParse(p5.GetValueAsString(), out sync_Hands);
+            var p6 = prefCategory.CreateEntry<bool>("sync_Fingers", true);
+            bool.TryParse(p6.GetValueAsString(), out sync_Fingers);
+            var p7 = prefCategory.CreateEntry<bool>("auto_connect", true);
+            bool.TryParse(p6.GetValueAsString(), out auto_connect);
+            var p8 = prefCategory.CreateEntry<bool>("avatar_sync", true, "Sync your avatar with others ( Sync only: Hands, Head, Fingers )");
+            bool.TryParse(p6.GetValueAsString(), out avatar_sync);
+            if (!avatar_sync)
+                return;
+            listener.ConnectionRequestEvent += ConnectionRequestEvent;
+            listener.PeerConnectedEvent += ConnectedEvent;
+            listener.PeerDisconnectedEvent += DisconnectedEvent;
+            listener.NetworkReceiveEvent += NetworkReceiveEvent;
+            listener.NetworkErrorEvent += NetworkErrorEvent;
+            token = GenerateToken(5);
+            MelonLogger.Msg($" [AvatarSync] Connection token \"{token}\".");
+            MelonLogger.Msg(" [AvatarSync] Current avatar sync mode \"HOST\", change via F9 key.");
+            MelonLogger.Msg(" [AvatarSync] If you want to start avatar sync press F10 key.");
+            Task.Factory.StartNew(async () =>
+            {
+                while (true)
+                {
+                    await Task.Delay(15);
+                    if (manager != null)
+                        manager.PollEvents();
+                }
+            });
+            Task.Factory.StartNew(async () =>
+            {
+                while (true)
+                {
+                    await Task.Delay(3000);
+                    if (!is_connected && !isHost)
+                    {
+                        if (manager == null)
+                            manager = new NetManager(listener);
+                        manager.Start();
+                        MelonLogger.Msg($" [AvatarSync] Connecting to host....");
+                        manager.Connect(host_ip, host_port, host_token);
+                    }
+                    else if (isHost && manager == null)
+                    {
+                        if (manager == null)
+                            manager = new NetManager(listener);
+                        manager.Start(7777);
+                    }
+                }
+            });
+        }
+
+        private void NetworkErrorEvent(IPEndPoint endPoint, SocketError socketError)
+        {
+            MelonLogger.Msg($" [AvatarSync] Network error, IP: {endPoint.Address}, Error: {socketError}");
+        }
+
+        private void NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
+        {
+            byte type = reader.GetByte();
+            switch (type)
+            {
+                //hands
+                case 0:
+                    if (!sync_Hands)
+                        return;
+                    var pos = reader.GetFloatArray();
+                    var rot = reader.GetFloatArray();
+                    rightHandPosition = new Vector3(pos[0], pos[1], pos[2]);
+                    leftHandPosition = new Vector3(pos[3], pos[4], pos[5]);
+                    rightHandRotation = new Quaternion(rot[0], rot[1], rot[2], rot[3]);
+                    leftHandRotation = new Quaternion(rot[4], rot[5], rot[6], rot[7]);
+                    break;
+                //head
+                case 1:
+                    if (!sync_Head)
+                        return;
+                    var pos2 = reader.GetFloatArray();
+                    var rot2 = reader.GetFloatArray();
+                    cameraTransform.rotation = new Quaternion(rot2[0], rot2[1], rot2[2], rot2[3]);
+                    cameraTransform.localPosition = new Vector3(pos2[0], pos2[1], pos2[2]);
+                    break;
+                //fingers
+                case 2:
+                    if (!sync_Fingers)
+                        return;
+                    m_fingersBends = reader.GetFloatArray();
+                    m_fingersSpreads = reader.GetFloatArray();
+                    break;
+            }
+        }
+
+        private void DisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
+        {
+            if (!isHost)
+                is_connected = false;
+            MelonLogger.Msg($" [AvatarSync] User disconnected, IP: {peer.EndPoint.Address}, Reason: {disconnectInfo.ToString()}.");
+        }
+
+        private void ConnectedEvent(NetPeer peer)
+        {
+            if (!isHost)
+                is_connected = true;
+            MelonLogger.Msg($" [AvatarSync] New user connected, IP: {peer.EndPoint.Address}");
+        }
+
+        private void ConnectionRequestEvent(ConnectionRequest request)
+        {
+            MelonLogger.Msg($" [AvatarSync] Connection request from: {request.RemoteEndPoint.Address}");
+            var peer = request.AcceptIfKey(token);
+            if (peer == null)
+            {
+                MelonLogger.Msg($" [AvatarSync] Connection request from: {request.RemoteEndPoint.Address} rejected, wrong token.");
+            }
+        }
+
+        public string GenerateToken(int length)
+        {
+            using (RNGCryptoServiceProvider cryptRNG = new RNGCryptoServiceProvider())
+            {
+                byte[] tokenBuffer = new byte[length];
+                cryptRNG.GetBytes(tokenBuffer);
+                return Convert.ToBase64String(tokenBuffer);
+            }
+        }
+
         
         public override void OnApplicationQuit()
         {
@@ -90,28 +252,32 @@ namespace VRCBonesController
 
         private void ManualControl()
         {
-            //Reset both hands position
-            if (Input.GetKey(KeyCode.F1))
+            if (!Input.GetKey(KeyCode.LeftShift))
             {
-                rightHandPosition = new Vector3(-120f, 390f, 65.6f);
-                leftHandPosition = new Vector3(120f, 390f, 65.6f);
+                //Reset both hands position
+                if (Input.GetKey(KeyCode.F1))
+                {
+                    rightHandPosition = new Vector3(-120f, 390f, 65.6f);
+                    leftHandPosition = new Vector3(120f, 390f, 65.6f);
+                }
+                //Reset both hands rotation
+                else if (Input.GetKey(KeyCode.F2))
+                {
+                    rightHandRotation = handRightOrginal;
+                    leftHandRotation = handLeftOrginal;
+                }
+                //Reset camera rotation
+                else if (Input.GetKey(KeyCode.F3))
+                {
+                    cameraTransform.rotation = cameraTransformOriginal;
+                }
+                //Reset hands fingers
+                else if (Input.GetKey(KeyCode.F4))
+                {
+                    ResetFingers();
+                }
             }
-            //Reset both hands rotation
-            if (Input.GetKey(KeyCode.F2))
-            {
-                rightHandRotation = handRightOrginal;
-                leftHandRotation = handLeftOrginal;
-            }
-            //Reset camera rotation
-            if (Input.GetKey(KeyCode.F3))
-            {
-                cameraTransform.rotation = cameraTransformOriginal;
-            }
-            //Reset hands fingers
-            if (Input.GetKey(KeyCode.F4))
-            {
-                ResetFingers();
-            }
+
             //Change speed direction
             if (Input.GetKey(KeyCode.LeftControl))
             {
@@ -305,21 +471,106 @@ namespace VRCBonesController
             ms_inVrMode = VRCTrackingManager.Method_Public_Static_Boolean_4();
             if (IsManualControl && isReady)
                 ManualControl();
-            if (Input.GetKeyDown(KeyCode.F5))
-                IsManualControl = !IsManualControl;
-            if (Input.GetKeyDown(KeyCode.F6))
+            if (isHost && manager != null && avatar_sync)
             {
-                if (!isReady)
+                NetDataWriter wr = new NetDataWriter();
+                if (l_handController != null)
                 {
-                    isReady = true;
-                    rightHandPosition = new Vector3(-120f, 390f, 65.6f);
-                    leftHandPosition = new Vector3(120f, 390f, 65.6f);
+                    wr.Put((byte)2);
+                    wr.PutArray(l_handController.field_Private_ArrayOf_Single_1);
+                    wr.PutArray(l_handController.field_Private_ArrayOf_Single_3);
+                    manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
                 }
-                else
+
+                if (l_solver.leftArm?.target != null && l_solver.rightArm?.target != null)
                 {
-                    ResetFingers();
-                    isReady = false;
-                    cameraTransform.rotation = cameraTransformOriginal;
+                    wr = new NetDataWriter();
+                    wr.Put((byte)0);
+                    wr.PutArray(new float[]
+                    {
+                        l_solver.rightArm.position.x,
+                        l_solver.rightArm.position.y,
+                        l_solver.rightArm.position.z,
+                        l_solver.leftArm.position.x,
+                        l_solver.leftArm.position.y,
+                        l_solver.leftArm.position.z
+                    });
+                    wr.PutArray(new float[]
+                    {
+                        l_solver.rightArm.rotation.x,
+                        l_solver.rightArm.rotation.y,
+                        l_solver.rightArm.rotation.z,
+                        l_solver.rightArm.rotation.w,
+                        l_solver.leftArm.rotation.x,
+                        l_solver.leftArm.rotation.y,
+                        l_solver.leftArm.rotation.z,
+                        l_solver.leftArm.rotation.w
+                    });
+                    manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
+                }
+
+                wr = new NetDataWriter();
+                wr.Put((byte)1);
+                wr.PutArray(new float[]
+                {
+                    cameraTransform.localPosition.x,
+                    cameraTransform.localPosition.y,
+                    cameraTransform.localPosition.z
+                });
+                wr.PutArray(new float[]
+                {
+                    cameraTransform.rotation.x,
+                    cameraTransform.rotation.y,
+                    cameraTransform.rotation.z,
+                    cameraTransform.rotation.w
+                });
+                manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
+            }
+            if (!Input.GetKey(KeyCode.LeftShift))
+            {
+                if (Input.GetKey(KeyCode.F5))
+                    IsManualControl = !IsManualControl;
+                else if (Input.GetKey(KeyCode.F6))
+                {
+                    if (!isReady)
+                    {
+                        isReady = true;
+                        rightHandPosition = new Vector3(-120f, 390f, 65.6f);
+                        leftHandPosition = new Vector3(120f, 390f, 65.6f);
+                    }
+                    else
+                    {
+                        ResetFingers();
+                        isReady = false;
+                        cameraTransform.rotation = cameraTransformOriginal;
+                    }
+                }
+                else if (Input.GetKey(KeyCode.F9) && avatar_sync)
+                {
+                    isHost = !isHost;
+                    MelonLogger.Msg(" [AvatarSync] Current avatar sync mode \"" + (isHost ? "HOST" : "CLIENT") + "\", change via F9 key.");
+                }
+                else if (Input.GetKey(KeyCode.F10) && avatar_sync)
+                {
+                    if (manager != null)
+                    {
+                        MelonLogger.Msg($" [AvatarSync] Killing current connection manager.");
+                        manager.DisconnectAll();
+                        manager = null;
+                    }
+                    if (isHost)
+                    {
+                        if (manager == null)
+                            manager = new NetManager(listener);
+                        manager.Start(7777);
+                    }
+                    else
+                    {
+                        if (manager == null)
+                            manager = new NetManager(listener);
+                        manager.Start();
+                        manager.Connect(host_ip, host_port, host_token);
+                    }
                 }
             }
             if (isReady)
@@ -409,25 +660,25 @@ namespace VRCBonesController
 
                     for (int i = 0; i < 2; i++)
                     {
-                        if (true)
+                        for (int j = 0; j < 5; j++)
                         {
-                            for (int j = 0; j < 5; j++)
-                            {
-                                int l_dataIndex = i * 5 + j;
-                                l_handController.field_Private_ArrayOf_VRCInput_0[l_dataIndex].field_Public_Single_0 = 1.0f - m_fingersBends[l_dataIndex]; // Squeeze
-                                l_handController.field_Private_ArrayOf_VRCInput_1[l_dataIndex].field_Public_Single_0 = m_fingersSpreads[l_dataIndex]; // Spread
-                            }
+                            int l_dataIndex = i * 5 + j;
+                            l_handController.field_Private_ArrayOf_VRCInput_0[l_dataIndex].field_Public_Single_0 = 1.0f - m_fingersBends[l_dataIndex]; // Squeeze
+                            l_handController.field_Private_ArrayOf_VRCInput_1[l_dataIndex].field_Public_Single_0 = m_fingersSpreads[l_dataIndex]; // Spread
                         }
                     }
                 }
             }
         }
 
+        IKSolverVR l_solver = null;
+        HandGestureController l_handController = null;
+
         public override void OnLateUpdate()
         {
             if (isReady)
             {
-                var l_solver = VRCPlayer.field_Internal_Static_VRCPlayer_0?.field_Private_VRC_AnimationController_0?.field_Private_VRIK_0?.solver;
+                l_solver = VRCPlayer.field_Internal_Static_VRCPlayer_0?.field_Private_VRC_AnimationController_0?.field_Private_VRIK_0?.solver;
                 if (l_solver != null)
                 {
                     if (l_solver.leftArm?.target != null)
@@ -448,7 +699,7 @@ namespace VRCBonesController
                     }
                 }
 
-                var l_handController = VRCPlayer.field_Internal_Static_VRCPlayer_0?.field_Private_VRC_AnimationController_0?.field_Private_HandGestureController_0;
+                l_handController = VRCPlayer.field_Internal_Static_VRCPlayer_0?.field_Private_VRC_AnimationController_0?.field_Private_HandGestureController_0;
                 if (l_handController != null)
                 {
                     l_handController.field_Internal_Boolean_0 = true;
