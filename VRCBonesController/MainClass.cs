@@ -186,7 +186,7 @@ namespace VRCBonesController
                     var pos2 = reader.GetFloatArray();
                     var rot2 = reader.GetFloatArray();
                     cameraTransform.rotation = new Quaternion(rot2[0], rot2[1], rot2[2], rot2[3]);
-                    cameraTransform.localPosition = new Vector3(pos2[0], pos2[1], pos2[2]);
+                    //cameraTransform.localPosition = new Vector3(pos2[0], pos2[1], pos2[2]);
                     break;
                 //fingers
                 case 2:
@@ -203,6 +203,10 @@ namespace VRCBonesController
                     {
                         var pos3 = reader.GetFloatArray();
                         var rot3 = reader.GetFloatArray();
+                        l_solver.leftLeg.positionWeight = 1f;
+                        l_solver.leftLeg.rotationWeight = 1f;
+                        l_solver.rightLeg.positionWeight = 1f;
+                        l_solver.rightLeg.rotationWeight = 1f;
                         l_solver.leftLeg.IKPosition = new Vector3(pos3[0], pos3[1], pos3[2]);
                         l_solver.rightLeg.IKPosition = new Vector3(pos3[3], pos3[4], pos3[5]);
                         l_solver.leftLeg.IKRotation = new Quaternion(rot3[0], rot3[1], rot3[2], rot3[3]);
@@ -478,84 +482,88 @@ namespace VRCBonesController
             {
                 if (manager.ConnectedPeersCount != 0)
                 {
-                    NetDataWriter wr = new NetDataWriter();
-                    if (l_handController != null)
+                    try
                     {
-                        wr.Put((byte)2);
-                        wr.PutArray(l_handController.field_Private_ArrayOf_Single_1);
-                        wr.PutArray(l_handController.field_Private_ArrayOf_Single_3);
-                        manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
-                    }
+                        NetDataWriter wr = new NetDataWriter();
+                        if (l_handController != null)
+                        {
+                            wr.Put((byte)2);
+                            wr.PutArray(l_handController.field_Private_ArrayOf_Single_1);
+                            wr.PutArray(l_handController.field_Private_ArrayOf_Single_3);
+                            manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
+                        }
 
-                    if (l_solver.leftArm?.target != null && l_solver.rightArm?.target != null)
-                    {
-                        wr = new NetDataWriter();
-                        wr.Put((byte)0);
-                        wr.PutArray(new float[]
+                        if (l_solver.leftArm?.target != null && l_solver.rightArm?.target != null)
                         {
-                        l_solver.rightArm.position.x,
-                        l_solver.rightArm.position.y,
-                        l_solver.rightArm.position.z,
-                        l_solver.leftArm.position.x,
-                        l_solver.leftArm.position.y,
-                        l_solver.leftArm.position.z
-                        });
-                        wr.PutArray(new float[]
+                            wr = new NetDataWriter();
+                            wr.Put((byte)0);
+                            wr.PutArray(new float[]
+                            {
+                            l_solver.rightArm.position.x,
+                            l_solver.rightArm.position.y,
+                            l_solver.rightArm.position.z,
+                            l_solver.leftArm.position.x,
+                            l_solver.leftArm.position.y,
+                            l_solver.leftArm.position.z
+                            });
+                            wr.PutArray(new float[]
+                            {
+                            l_solver.rightArm.rotation.x,
+                            l_solver.rightArm.rotation.y,
+                            l_solver.rightArm.rotation.z,
+                            l_solver.rightArm.rotation.w,
+                            l_solver.leftArm.rotation.x,
+                            l_solver.leftArm.rotation.y,
+                            l_solver.leftArm.rotation.z,
+                            l_solver.leftArm.rotation.w
+                            });
+                            manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
+                        }
+                        if (l_solver.leftLeg != null && l_solver.rightLeg != null)
                         {
-                        l_solver.rightArm.rotation.x,
-                        l_solver.rightArm.rotation.y,
-                        l_solver.rightArm.rotation.z,
-                        l_solver.rightArm.rotation.w,
-                        l_solver.leftArm.rotation.x,
-                        l_solver.leftArm.rotation.y,
-                        l_solver.leftArm.rotation.z,
-                        l_solver.leftArm.rotation.w
-                        });
-                        manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
-                    }
-                    if (l_solver.leftLeg?.target != null && l_solver.rightLeg?.target != null)
-                    {
-                        wr = new NetDataWriter();
-                        wr.Put((byte)0);
-                        wr.PutArray(new float[]
-                        {
-                        l_solver.leftLeg.IKPosition.x,
-                        l_solver.leftLeg.IKPosition.y,
-                        l_solver.leftLeg.IKPosition.z,
-                        l_solver.rightLeg.IKPosition.x,
-                        l_solver.rightLeg.IKPosition.y,
-                        l_solver.rightLeg.IKPosition.z
-                        });
-                        wr.PutArray(new float[]
-                        {
-                        l_solver.leftLeg.IKRotation.x,
-                        l_solver.leftLeg.IKRotation.y,
-                        l_solver.leftLeg.IKRotation.z,
-                        l_solver.leftLeg.IKRotation.w,
-                        l_solver.rightLeg.IKRotation.x,
-                        l_solver.rightLeg.IKRotation.y,
-                        l_solver.rightLeg.IKRotation.z,
-                        l_solver.rightLeg.IKRotation.w
-                        });
-                        manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
-                    }
+                            wr = new NetDataWriter();
+                            wr.Put((byte)3);
+                            wr.PutArray(new float[]
+                            {
+                            l_solver.leftLeg.IKPosition.x,
+                            l_solver.leftLeg.IKPosition.y,
+                            l_solver.leftLeg.IKPosition.z,
+                            l_solver.rightLeg.IKPosition.x,
+                            l_solver.rightLeg.IKPosition.y,
+                            l_solver.rightLeg.IKPosition.z
+                            });
+                            wr.PutArray(new float[]
+                            {
+                            l_solver.leftLeg.IKRotation.x,
+                            l_solver.leftLeg.IKRotation.y,
+                            l_solver.leftLeg.IKRotation.z,
+                            l_solver.leftLeg.IKRotation.w,
+                            l_solver.rightLeg.IKRotation.x,
+                            l_solver.rightLeg.IKRotation.y,
+                            l_solver.rightLeg.IKRotation.z,
+                            l_solver.rightLeg.IKRotation.w
+                            });
+                            manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
+                        }
 
-                    wr = new NetDataWriter();
-                    wr.Put((byte)1);
-                    wr.PutArray(new float[]
-                    {
+                        wr = new NetDataWriter();
+                        wr.Put((byte)1);
+                        wr.PutArray(new float[]
+                        {
                     cameraTransform.localPosition.x,
                     cameraTransform.localPosition.y,
                     cameraTransform.localPosition.z
-                    });
-                    wr.PutArray(new float[]
-                    {
+                        });
+                        wr.PutArray(new float[]
+                        {
                     cameraTransform.rotation.x,
                     cameraTransform.rotation.y,
                     cameraTransform.rotation.z,
                     cameraTransform.rotation.w
-                    });
-                    manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
+                        });
+                        manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
+                    }
+                    catch (Exception) { }
                 }
             }
             if (!Input.GetKey(KeyCode.LeftShift))
