@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 
-[assembly: MelonLoader.MelonInfo(typeof(VRCBonesController.MainClass), "VRCBonesController", "1.0.1", "Killers0992", "https://paypal.me/killers0992")]
+[assembly: MelonLoader.MelonInfo(typeof(VRCBonesController.MainClass), "VRCBonesController", "1.0.2", "Killers0992", "https://github.com/Killers0992/VRCBonesController")]
 [assembly: MelonLoader.MelonGame("VRChat", "VRChat")]
 
 [assembly: AssemblyTitle("VRCBonesController")]
@@ -36,5 +36,5 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.0.1.0")]
-[assembly: AssemblyFileVersion("1.0.1.0")]
+[assembly: AssemblyVersion("1.0.2.0")]
+[assembly: AssemblyFileVersion("1.0.2.0")]
