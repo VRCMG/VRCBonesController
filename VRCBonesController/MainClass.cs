@@ -59,12 +59,23 @@ namespace VRCBonesController
         bool sync_Head = true;
         bool sync_Hands = true;
         bool sync_Fingers = true;
+        bool sync_Legs = true;
         bool auto_connect = false;
         bool is_connected = false;
         bool avatar_sync = false;
 
         public override void OnApplicationStart()
         {
+            MelonPreferences.CreateCategory("VRCBonesController", "VRCBonesController");
+            MelonPreferences.CreateEntry<string>("VRCBonesController", "host_ip", "localhost", "IP Address which client will be connected after start vrchat.");
+            MelonPreferences.CreateEntry<int>("VRCBonesController", "host_port", 7777, "Port of host.");
+            MelonPreferences.CreateEntry<string>("VRCBonesController", "host_token", "3DPaED", "Token is needed to connect.");
+            MelonPreferences.CreateEntry<bool>("VRCBonesController", "sync_Head", true, "Receive sync of head while client mode.");
+            MelonPreferences.CreateEntry<bool>("VRCBonesController", "sync_Hands", true, "Receive sync of hands while client mode.");
+            MelonPreferences.CreateEntry<bool>("VRCBonesController", "sync_Fingers", true, "Receive sync of fingers while client mode.");
+            MelonPreferences.CreateEntry<bool>("VRCBonesController", "sync_legs", true, "Receive sync of legs while client mode.");
+            MelonPreferences.CreateEntry<bool>("VRCBonesController", "auto_connect", true, "Auto host or auto connect if disconnected.");
+            MelonPreferences.CreateEntry<bool>("VRCBonesController", "avatar_sync", true, "Sync your avatar with others ( Sync only: Hands, Head, Fingers )");
 
             ms_inVrMode = VRCTrackingManager.Method_Public_Static_Boolean_4();
             m_fingersBends = new float[10];
@@ -76,6 +87,7 @@ namespace VRCBonesController
                     x.Name.StartsWith("Method_Public_Static_Boolean_EnumNPublicSealedvaKeMoCoGaViOcViDaWaUnique_")
                 ).ToList().ForEach(m => Harmony.Patch(m, l_patchMethod));
 
+
             OnPreferencesSaved();
         }
 
@@ -84,7 +96,6 @@ namespace VRCBonesController
         string token = "";
         string host_ip = "";
         int host_port = 7777;
-        string host_token = "-";
 
         public override void VRChat_OnUiManagerInit()
         {
@@ -93,29 +104,19 @@ namespace VRCBonesController
             var transform = camera.GetIl2CppType().GetFields(BindingFlags.Public | BindingFlags.Instance).Where(f => f.FieldType == Il2CppType.Of<Transform>()).ToArray()[0];
             cameraTransform = transform.GetValue(camera).Cast<Transform>();
             cameraTransformOriginal = cameraTransform.rotation;
-
-
         }
 
-        public override void OnPreferencesLoaded()
+        public override void OnPreferencesSaved()
         {
-            var prefCategory = MelonPreferences.CreateCategory("VRCBonesController", "VRCBonesController");
-            var p1 = prefCategory.CreateEntry<string>("host_ip", "localhost");
-            host_ip = p1.GetValueAsString();
-            var p2 = prefCategory.CreateEntry<int>("host_port", 7777);
-            int.TryParse(p2.GetValueAsString(), out host_port);
-            var p3 = prefCategory.CreateEntry<string>("host_token", "-");
-            host_token = p3.GetValueAsString();
-            var p4 = prefCategory.CreateEntry<bool>("sync_Head", true);
-            bool.TryParse(p4.GetValueAsString(), out sync_Head);
-            var p5 = prefCategory.CreateEntry<bool>("sync_Hands", true);
-            bool.TryParse(p5.GetValueAsString(), out sync_Hands);
-            var p6 = prefCategory.CreateEntry<bool>("sync_Fingers", true);
-            bool.TryParse(p6.GetValueAsString(), out sync_Fingers);
-            var p7 = prefCategory.CreateEntry<bool>("auto_connect", true);
-            bool.TryParse(p6.GetValueAsString(), out auto_connect);
-            var p8 = prefCategory.CreateEntry<bool>("avatar_sync", true, "Sync your avatar with others ( Sync only: Hands, Head, Fingers )");
-            bool.TryParse(p6.GetValueAsString(), out avatar_sync);
+            host_ip = MelonPreferences.GetEntryValue<string>("VRCBonesController", "host_ip");
+            host_port = MelonPreferences.GetEntryValue<int>("VRCBonesController", "host_port");
+            token = MelonPreferences.GetEntryValue<string>("VRCBonesController", "host_token");
+            sync_Head = MelonPreferences.GetEntryValue<bool>("VRCBonesController", "sync_Head");
+            sync_Hands = MelonPreferences.GetEntryValue<bool>("VRCBonesController", "sync_Hands");
+            sync_Fingers = MelonPreferences.GetEntryValue<bool>("VRCBonesController", "sync_Fingers");
+            sync_Legs = MelonPreferences.GetEntryValue<bool>("VRCBonesController", "sync_Legs");
+            auto_connect = MelonPreferences.GetEntryValue<bool>("VRCBonesController", "auto_connect");
+            avatar_sync = MelonPreferences.GetEntryValue<bool>("VRCBonesController", "avatar_sync");
             if (!avatar_sync)
                 return;
             listener.ConnectionRequestEvent += ConnectionRequestEvent;
@@ -123,7 +124,6 @@ namespace VRCBonesController
             listener.PeerDisconnectedEvent += DisconnectedEvent;
             listener.NetworkReceiveEvent += NetworkReceiveEvent;
             listener.NetworkErrorEvent += NetworkErrorEvent;
-            token = GenerateToken(5);
             MelonLogger.Msg($" [AvatarSync] Connection token \"{token}\".");
             MelonLogger.Msg(" [AvatarSync] Current avatar sync mode \"HOST\", change via F9 key.");
             MelonLogger.Msg(" [AvatarSync] If you want to start avatar sync press F10 key.");
@@ -147,12 +147,11 @@ namespace VRCBonesController
                             manager = new NetManager(listener);
                         manager.Start();
                         MelonLogger.Msg($" [AvatarSync] Connecting to host....");
-                        manager.Connect(host_ip, host_port, host_token);
+                        manager.Connect(host_ip, host_port, token);
                     }
                     else if (isHost && manager == null)
                     {
-                        if (manager == null)
-                            manager = new NetManager(listener);
+                        manager = new NetManager(listener);
                         manager.Start(7777);
                     }
                 }
@@ -196,6 +195,20 @@ namespace VRCBonesController
                     m_fingersBends = reader.GetFloatArray();
                     m_fingersSpreads = reader.GetFloatArray();
                     break;
+                //legs
+                case 3:
+                    if (!sync_Legs)
+                        return;
+                    if (l_solver.leftLeg != null && l_solver.rightLeg != null)
+                    {
+                        var pos3 = reader.GetFloatArray();
+                        var rot3 = reader.GetFloatArray();
+                        l_solver.leftLeg.IKPosition = new Vector3(pos3[0], pos3[1], pos3[2]);
+                        l_solver.rightLeg.IKPosition = new Vector3(pos3[3], pos3[4], pos3[5]);
+                        l_solver.leftLeg.IKRotation = new Quaternion(rot3[0], rot3[1], rot3[2], rot3[3]);
+                        l_solver.rightLeg.IKRotation = new Quaternion(rot3[4], rot3[5], rot3[6], rot3[7]);
+                    }
+                    break;
             }
         }
 
@@ -220,16 +233,6 @@ namespace VRCBonesController
             if (peer == null)
             {
                 MelonLogger.Msg($" [AvatarSync] Connection request from: {request.RemoteEndPoint.Address} rejected, wrong token.");
-            }
-        }
-
-        public string GenerateToken(int length)
-        {
-            using (RNGCryptoServiceProvider cryptRNG = new RNGCryptoServiceProvider())
-            {
-                byte[] tokenBuffer = new byte[length];
-                cryptRNG.GetBytes(tokenBuffer);
-                return Convert.ToBase64String(tokenBuffer);
             }
         }
 
@@ -473,30 +476,32 @@ namespace VRCBonesController
                 ManualControl();
             if (isHost && manager != null && avatar_sync)
             {
-                NetDataWriter wr = new NetDataWriter();
-                if (l_handController != null)
+                if (manager.ConnectedPeersCount != 0)
                 {
-                    wr.Put((byte)2);
-                    wr.PutArray(l_handController.field_Private_ArrayOf_Single_1);
-                    wr.PutArray(l_handController.field_Private_ArrayOf_Single_3);
-                    manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
-                }
-
-                if (l_solver.leftArm?.target != null && l_solver.rightArm?.target != null)
-                {
-                    wr = new NetDataWriter();
-                    wr.Put((byte)0);
-                    wr.PutArray(new float[]
+                    NetDataWriter wr = new NetDataWriter();
+                    if (l_handController != null)
                     {
+                        wr.Put((byte)2);
+                        wr.PutArray(l_handController.field_Private_ArrayOf_Single_1);
+                        wr.PutArray(l_handController.field_Private_ArrayOf_Single_3);
+                        manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
+                    }
+
+                    if (l_solver.leftArm?.target != null && l_solver.rightArm?.target != null)
+                    {
+                        wr = new NetDataWriter();
+                        wr.Put((byte)0);
+                        wr.PutArray(new float[]
+                        {
                         l_solver.rightArm.position.x,
                         l_solver.rightArm.position.y,
                         l_solver.rightArm.position.z,
                         l_solver.leftArm.position.x,
                         l_solver.leftArm.position.y,
                         l_solver.leftArm.position.z
-                    });
-                    wr.PutArray(new float[]
-                    {
+                        });
+                        wr.PutArray(new float[]
+                        {
                         l_solver.rightArm.rotation.x,
                         l_solver.rightArm.rotation.y,
                         l_solver.rightArm.rotation.z,
@@ -505,26 +510,53 @@ namespace VRCBonesController
                         l_solver.leftArm.rotation.y,
                         l_solver.leftArm.rotation.z,
                         l_solver.leftArm.rotation.w
-                    });
-                    manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
-                }
+                        });
+                        manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
+                    }
+                    if (l_solver.leftLeg?.target != null && l_solver.rightLeg?.target != null)
+                    {
+                        wr = new NetDataWriter();
+                        wr.Put((byte)0);
+                        wr.PutArray(new float[]
+                        {
+                        l_solver.leftLeg.IKPosition.x,
+                        l_solver.leftLeg.IKPosition.y,
+                        l_solver.leftLeg.IKPosition.z,
+                        l_solver.rightLeg.IKPosition.x,
+                        l_solver.rightLeg.IKPosition.y,
+                        l_solver.rightLeg.IKPosition.z
+                        });
+                        wr.PutArray(new float[]
+                        {
+                        l_solver.leftLeg.IKRotation.x,
+                        l_solver.leftLeg.IKRotation.y,
+                        l_solver.leftLeg.IKRotation.z,
+                        l_solver.leftLeg.IKRotation.w,
+                        l_solver.rightLeg.IKRotation.x,
+                        l_solver.rightLeg.IKRotation.y,
+                        l_solver.rightLeg.IKRotation.z,
+                        l_solver.rightLeg.IKRotation.w
+                        });
+                        manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
+                    }
 
-                wr = new NetDataWriter();
-                wr.Put((byte)1);
-                wr.PutArray(new float[]
-                {
+                    wr = new NetDataWriter();
+                    wr.Put((byte)1);
+                    wr.PutArray(new float[]
+                    {
                     cameraTransform.localPosition.x,
                     cameraTransform.localPosition.y,
                     cameraTransform.localPosition.z
-                });
-                wr.PutArray(new float[]
-                {
+                    });
+                    wr.PutArray(new float[]
+                    {
                     cameraTransform.rotation.x,
                     cameraTransform.rotation.y,
                     cameraTransform.rotation.z,
                     cameraTransform.rotation.w
-                });
-                manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
+                    });
+                    manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
+                }
             }
             if (!Input.GetKey(KeyCode.LeftShift))
             {
@@ -560,16 +592,14 @@ namespace VRCBonesController
                     }
                     if (isHost)
                     {
-                        if (manager == null)
-                            manager = new NetManager(listener);
+                        manager = new NetManager(listener);
                         manager.Start(7777);
                     }
                     else
                     {
                         if (manager == null)
                             manager = new NetManager(listener);
-                        manager.Start();
-                        manager.Connect(host_ip, host_port, host_token);
+                        manager.Connect(host_ip, host_port, token);
                     }
                 }
             }
