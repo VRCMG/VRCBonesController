@@ -3,7 +3,7 @@
 
 Mod uses [ActionMenuAPI](https://github.com/gompocp/ActionMenuApi), download if you want to have easy interface to control all bones
 
-[Download](https://github.com/gompocp/ActionMenuApi/releases/download/v0.1.2/ActionMenuApi.dll)
+[Download](https://api.vrcmg.com/v0/mods/201/ActionMenuApi.dll)
 
 [![Watch the video](https://cdn.discordapp.com/attachments/742563440199204879/840154036522713088/unknown.png)](https://www.youtube.com/watch?v=V4yvpZUdEwI)
 
