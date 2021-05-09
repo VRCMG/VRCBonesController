@@ -11,6 +11,7 @@ using System.Security.Cryptography;
 using System.Threading.Tasks;
 using UnhollowerRuntimeLib;
 using UnityEngine;
+using UnityEngine.XR;
 
 namespace VRCBonesController
 {
@@ -73,9 +74,9 @@ namespace VRCBonesController
             MelonPreferences.CreateEntry<bool>("VRCBonesController", "sync_Head", true, "Receive sync of head while client mode.");
             MelonPreferences.CreateEntry<bool>("VRCBonesController", "sync_Hands", true, "Receive sync of hands while client mode.");
             MelonPreferences.CreateEntry<bool>("VRCBonesController", "sync_Fingers", true, "Receive sync of fingers while client mode.");
-            MelonPreferences.CreateEntry<bool>("VRCBonesController", "sync_legs", true, "Receive sync of legs while client mode.");
+            MelonPreferences.CreateEntry<bool>("VRCBonesController", "sync_legs", false, "Receive sync of legs while client mode.");
             MelonPreferences.CreateEntry<bool>("VRCBonesController", "auto_connect", true, "Auto host or auto connect if disconnected.");
-            MelonPreferences.CreateEntry<bool>("VRCBonesController", "avatar_sync", true, "Sync your avatar with others ( Sync only: Hands, Head, Fingers )");
+            MelonPreferences.CreateEntry<bool>("VRCBonesController", "avatar_sync", false, "Sync your avatar with others ( Sync only: Hands, Head, Fingers )");
 
             ms_inVrMode = VRCTrackingManager.Method_Public_Static_Boolean_4();
             m_fingersBends = new float[10];
@@ -262,24 +263,24 @@ namespace VRCBonesController
             if (!Input.GetKey(KeyCode.LeftShift))
             {
                 //Reset both hands position
-                if (Input.GetKey(KeyCode.F1))
+                if (Input.GetKeyDown(KeyCode.F1))
                 {
                     rightHandPosition = new Vector3(-120f, 390f, 65.6f);
                     leftHandPosition = new Vector3(120f, 390f, 65.6f);
                 }
                 //Reset both hands rotation
-                else if (Input.GetKey(KeyCode.F2))
+                else if (Input.GetKeyDown(KeyCode.F2))
                 {
                     rightHandRotation = handRightOrginal;
                     leftHandRotation = handLeftOrginal;
                 }
                 //Reset camera rotation
-                else if (Input.GetKey(KeyCode.F3))
+                else if (Input.GetKeyDown(KeyCode.F3))
                 {
                     cameraTransform.rotation = cameraTransformOriginal;
                 }
                 //Reset hands fingers
-                else if (Input.GetKey(KeyCode.F4))
+                else if (Input.GetKeyDown(KeyCode.F4))
                 {
                     ResetFingers();
                 }
@@ -475,7 +476,7 @@ namespace VRCBonesController
 
         public override void OnUpdate()
         {
-            ms_inVrMode = VRCTrackingManager.Method_Public_Static_Boolean_4();
+            ms_inVrMode = XRDevice.isPresent;
             if (IsManualControl && isReady)
                 ManualControl();
             if (isHost && manager != null && avatar_sync)
@@ -499,23 +500,23 @@ namespace VRCBonesController
                             wr.Put((byte)0);
                             wr.PutArray(new float[]
                             {
-                            l_solver.rightArm.position.x,
-                            l_solver.rightArm.position.y,
-                            l_solver.rightArm.position.z,
-                            l_solver.leftArm.position.x,
-                            l_solver.leftArm.position.y,
-                            l_solver.leftArm.position.z
+                                l_solver.rightArm.position.x,
+                                l_solver.rightArm.position.y,
+                                l_solver.rightArm.position.z,
+                                l_solver.leftArm.position.x,
+                                l_solver.leftArm.position.y,
+                                l_solver.leftArm.position.z
                             });
                             wr.PutArray(new float[]
                             {
-                            l_solver.rightArm.rotation.x,
-                            l_solver.rightArm.rotation.y,
-                            l_solver.rightArm.rotation.z,
-                            l_solver.rightArm.rotation.w,
-                            l_solver.leftArm.rotation.x,
-                            l_solver.leftArm.rotation.y,
-                            l_solver.leftArm.rotation.z,
-                            l_solver.leftArm.rotation.w
+                                l_solver.rightArm.rotation.x,
+                                l_solver.rightArm.rotation.y,
+                                l_solver.rightArm.rotation.z,
+                                l_solver.rightArm.rotation.w,
+                                l_solver.leftArm.rotation.x,
+                                l_solver.leftArm.rotation.y,
+                                l_solver.leftArm.rotation.z,
+                                l_solver.leftArm.rotation.w
                             });
                             manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
                         }
@@ -525,23 +526,23 @@ namespace VRCBonesController
                             wr.Put((byte)3);
                             wr.PutArray(new float[]
                             {
-                            l_solver.leftLeg.IKPosition.x,
-                            l_solver.leftLeg.IKPosition.y,
-                            l_solver.leftLeg.IKPosition.z,
-                            l_solver.rightLeg.IKPosition.x,
-                            l_solver.rightLeg.IKPosition.y,
-                            l_solver.rightLeg.IKPosition.z
+                                l_solver.leftLeg.IKPosition.x,
+                                l_solver.leftLeg.IKPosition.y,
+                                l_solver.leftLeg.IKPosition.z,
+                                l_solver.rightLeg.IKPosition.x,
+                                l_solver.rightLeg.IKPosition.y,
+                                l_solver.rightLeg.IKPosition.z
                             });
                             wr.PutArray(new float[]
                             {
-                            l_solver.leftLeg.IKRotation.x,
-                            l_solver.leftLeg.IKRotation.y,
-                            l_solver.leftLeg.IKRotation.z,
-                            l_solver.leftLeg.IKRotation.w,
-                            l_solver.rightLeg.IKRotation.x,
-                            l_solver.rightLeg.IKRotation.y,
-                            l_solver.rightLeg.IKRotation.z,
-                            l_solver.rightLeg.IKRotation.w
+                                l_solver.leftLeg.IKRotation.x,
+                                l_solver.leftLeg.IKRotation.y,
+                                l_solver.leftLeg.IKRotation.z,
+                                l_solver.leftLeg.IKRotation.w,
+                                l_solver.rightLeg.IKRotation.x,
+                                l_solver.rightLeg.IKRotation.y,
+                                l_solver.rightLeg.IKRotation.z,
+                                l_solver.rightLeg.IKRotation.w
                             });
                             manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
                         }
@@ -550,16 +551,16 @@ namespace VRCBonesController
                         wr.Put((byte)1);
                         wr.PutArray(new float[]
                         {
-                    cameraTransform.localPosition.x,
-                    cameraTransform.localPosition.y,
-                    cameraTransform.localPosition.z
+                            cameraTransform.localPosition.x,
+                            cameraTransform.localPosition.y,
+                            cameraTransform.localPosition.z
                         });
                         wr.PutArray(new float[]
                         {
-                    cameraTransform.rotation.x,
-                    cameraTransform.rotation.y,
-                    cameraTransform.rotation.z,
-                    cameraTransform.rotation.w
+                            cameraTransform.rotation.x,
+                            cameraTransform.rotation.y,
+                            cameraTransform.rotation.z,
+                            cameraTransform.rotation.w
                         });
                         manager.SendToAll(wr, DeliveryMethod.ReliableOrdered);
                     }
@@ -568,9 +569,9 @@ namespace VRCBonesController
             }
             if (!Input.GetKey(KeyCode.LeftShift))
             {
-                if (Input.GetKey(KeyCode.F5))
+                if (Input.GetKeyDown(KeyCode.F5))
                     IsManualControl = !IsManualControl;
-                else if (Input.GetKey(KeyCode.F6))
+                else if (Input.GetKeyDown(KeyCode.F6))
                 {
                     if (!isReady)
                     {
@@ -585,12 +586,12 @@ namespace VRCBonesController
                         cameraTransform.rotation = cameraTransformOriginal;
                     }
                 }
-                else if (Input.GetKey(KeyCode.F9) && avatar_sync)
+                else if (Input.GetKeyDown(KeyCode.F9) && avatar_sync)
                 {
                     isHost = !isHost;
                     MelonLogger.Msg(" [AvatarSync] Current avatar sync mode \"" + (isHost ? "HOST" : "CLIENT") + "\", change via F9 key.");
                 }
-                else if (Input.GetKey(KeyCode.F10) && avatar_sync)
+                else if (Input.GetKeyDown(KeyCode.F10) && avatar_sync)
                 {
                     if (manager != null)
                     {
