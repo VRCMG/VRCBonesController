@@ -6,6 +6,7 @@ Mod which allows you to move/rotate hands/head/fingers in desktop mode.
 Credits for code which handles fingers state, hands position/rotation https://github.com/SDraw / https://github.com/SDraw/ml_lme
 
 Mod uses [ActionMenuAPI](https://github.com/gompocp/ActionMenuApi), download if you want to have easy interface to control all bones.
+
 [Download](https://github.com/gompocp/ActionMenuApi/releases/download/v0.1.2/ActionMenuApi.dll)
 
 If you want to start using mod just press ``F6`` and ``F5``
