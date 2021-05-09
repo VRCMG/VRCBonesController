@@ -1,9 +1,12 @@
-﻿using Il2CppSystem.Reflection;
+﻿using ActionMenuApi;
+using ActionMenuApi.Types;
+using Il2CppSystem.Reflection;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using MelonLoader;
 using RootMotion.FinalIK;
 using System;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -25,16 +28,16 @@ namespace VRCBonesController
         Vector3 m_rootOffset = new Vector3(0f, 0.5f, 0.25f);
 
         static bool ms_inVrMode = false;
-        float[] m_fingersBends = null;
-        float[] m_fingersSpreads = null;
+        static float[] m_fingersBends = null;
+        static float[] m_fingersSpreads = null;
 
         Vector3 m_leftTargetPosition;
         Quaternion m_leftTargetRotation;
         Vector3 m_rightTargetPosition;
         Quaternion m_rightTargetRotation;
 
-        Vector3 rightHandPosition = new Vector3(-120f, 390f, 65.6f);
-        Vector3 leftHandPosition = new Vector3(120f, 390f, 65.6f);
+        static Vector3 rightHandPosition = new Vector3(-120f, 390f, 65.6f);
+        static Vector3 leftHandPosition = new Vector3(120f, 390f, 65.6f);
 
         Quaternion rightHandRotation = new Quaternion(0f, 0f, 0f, 0f);
         Quaternion leftHandRotation = new Quaternion(0f, 0f, 0f, 0f);
@@ -44,7 +47,7 @@ namespace VRCBonesController
         Quaternion handLeftOrginal;
         Quaternion handRightOrginal;
 
-        Transform cameraTransform = null;
+        static Transform cameraTransform = null;
 
         static bool isReady = false;
         int headMoveType = 0;
@@ -78,7 +81,6 @@ namespace VRCBonesController
             MelonPreferences.CreateEntry<bool>("VRCBonesController", "auto_connect", true, "Auto host or auto connect if disconnected.");
             MelonPreferences.CreateEntry<bool>("VRCBonesController", "avatar_sync", false, "Sync your avatar with others ( Sync only: Hands, Head, Fingers )");
 
-            ms_inVrMode = VRCTrackingManager.Method_Public_Static_Boolean_4();
             m_fingersBends = new float[10];
             m_fingersSpreads = new float[10];
 
@@ -89,8 +91,283 @@ namespace VRCBonesController
                 ).ToList().ForEach(m => Harmony.Patch(m, l_patchMethod));
 
 
+            iconsAssetBundle = AssetBundle.LoadFromMemory_Internal(VRCBonesController.Properties.Resources.customicons, 0);
+            iconsAssetBundle.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+            
+
+            radialIcon = iconsAssetBundle.LoadAsset_Internal("Assets/Resources/Icons/sound-full.png", Il2CppType.Of<Texture2D>()).Cast<Texture2D>();
+            radialIcon.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+            toggleIcon = iconsAssetBundle.LoadAsset_Internal("Assets/Resources/Icons/zero.png", Il2CppType.Of<Texture2D>()).Cast<Texture2D>();
+            toggleIcon.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+            subMenuIcon = iconsAssetBundle.LoadAsset_Internal("Assets/Resources/Icons/file-transfer.png", Il2CppType.Of<Texture2D>()).Cast<Texture2D>();
+            subMenuIcon.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+            buttonIcon = iconsAssetBundle.LoadAsset_Internal("Assets/Resources/Icons/cloud-data-download.png", Il2CppType.Of<Texture2D>()).Cast<Texture2D>();
+            buttonIcon.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+
+            try
+            {
+                AMAPI.AddModFolder(
+                    "BonesController",
+                    delegate
+                    {
+                        AMAPI.AddSubMenuToSubMenu("Hands", delegate ()
+                        {
+                            AMAPI.AddSubMenuToSubMenu("Right", delegate ()
+                            {
+                                AMAPI.AddFourAxisPedalToSubMenu("Control pos", ChangeRightHandPos, radialIcon);
+                                AMAPI.AddFourAxisPedalToSubMenu("Control forward/backwards", ChangeRightHandFB, radialIcon, "Forward", "", "Backwards", "");
+                                AMAPI.AddButtonPedalToSubMenu("Reset", delegate ()
+                                {
+                                    rightHandPosition = new Vector3(-120f, 390f, 65.6f);
+                                });
+                            }, radialIcon);
+                            AMAPI.AddSubMenuToSubMenu("Both", delegate ()
+                            {
+                                AMAPI.AddFourAxisPedalToSubMenu("Control pos", ChangeBothHandsPos, radialIcon);
+                                AMAPI.AddFourAxisPedalToSubMenu("Control forward/backwards", ChangeBothHandsFB, radialIcon, "Forward", "", "Backwards", "");
+                                AMAPI.AddButtonPedalToSubMenu("Reset", delegate ()
+                                {
+                                    leftHandPosition = new Vector3(120f, 390f, 65.6f);
+                                    rightHandPosition = new Vector3(-120f, 390f, 65.6f);
+                                });
+                            }, radialIcon);
+                            AMAPI.AddSubMenuToSubMenu("Left", delegate ()
+                            {
+                                AMAPI.AddFourAxisPedalToSubMenu("Control pos", ChangeLeftHandPos, radialIcon);
+                                AMAPI.AddFourAxisPedalToSubMenu("Control forward/backwards", ChangeLeftHandFB, radialIcon, "Forward", "", "Backwards", "");
+                                AMAPI.AddButtonPedalToSubMenu("Reset", delegate ()
+                                {
+                                    leftHandPosition = new Vector3(120f, 390f, 65.6f);
+                                });
+                            }, radialIcon);
+                        }, radialIcon);
+                        AMAPI.AddSubMenuToSubMenu("Legs", delegate ()
+                        {
+                            AMAPI.AddSubMenuToSubMenu("Right", delegate ()
+                            {
+                                AMAPI.AddFourAxisPedalToSubMenu("Control bends", ChangeRightLegBends, radialIcon);
+                                AMAPI.AddFourAxisPedalToSubMenu("Control pos", ChangeRightLegPos, radialIcon);
+                                AMAPI.AddButtonPedalToSubMenu("Reset", delegate ()
+                                {
+                                    l_solver.rightLeg.IKPosition = l_solver.headPosition;
+                                });
+                            }, radialIcon);
+                            AMAPI.AddSubMenuToSubMenu("Both", delegate ()
+                            {
+                                AMAPI.AddFourAxisPedalToSubMenu("Control bends", ChangeBothLegsBends, radialIcon);
+                                AMAPI.AddFourAxisPedalToSubMenu("Control pos", ChangeBothLegsPos, radialIcon);
+                                AMAPI.AddButtonPedalToSubMenu("Reset", delegate ()
+                                {
+                                    l_solver.rightLeg.IKPosition = l_solver.headPosition;
+                                    l_solver.leftLeg.IKPosition = l_solver.headPosition;
+                                });
+                            }, radialIcon);
+                            AMAPI.AddSubMenuToSubMenu("Left", delegate ()
+                            {
+                                AMAPI.AddFourAxisPedalToSubMenu("Control bends", ChangeLeftLegBends, radialIcon);
+                                AMAPI.AddFourAxisPedalToSubMenu("Control pos", ChangeLeftLegPos, radialIcon);
+                                AMAPI.AddButtonPedalToSubMenu("Reset", delegate ()
+                                {
+                                    l_solver.rightLeg.IKPosition = l_solver.headPosition;
+                                });
+                            }, radialIcon);
+                        }, radialIcon);
+                        AMAPI.AddSubMenuToSubMenu("Fingers", delegate ()
+                        {
+                            AMAPI.AddSubMenuToSubMenu("Right", delegate ()
+                            {
+                                AMAPI.AddFourAxisPedalToSubMenu("Control", ChangeFingersRight, radialIcon);
+                                AMAPI.AddButtonPedalToSubMenu("Reset", delegate ()
+                                {
+                                    ResetFingers();
+                                });
+                            }, radialIcon);
+                            AMAPI.AddSubMenuToSubMenu("Both", delegate ()
+                            {
+                                AMAPI.AddFourAxisPedalToSubMenu("Control", ChangeFingersBoth, radialIcon);
+                                AMAPI.AddButtonPedalToSubMenu("Reset", delegate ()
+                                {
+                                    ResetFingers();
+                                });
+                            }, radialIcon);
+                            AMAPI.AddSubMenuToSubMenu("Left", delegate ()
+                            {
+                                AMAPI.AddFourAxisPedalToSubMenu("Control", ChangeFingersLeft, radialIcon);
+                                AMAPI.AddButtonPedalToSubMenu("Reset", delegate ()
+                                {
+                                    ResetFingers();
+                                });
+                            }, radialIcon);
+                        }, radialIcon);
+                        AMAPI.AddTogglePedalToSubMenu("Enable control", false, ChangeControlState, radialIcon);
+                    //AMAPI.AddFourAxisPedalToSubMenu("Head", ChangeHeadRot, radialIcon);
+                },
+                    subMenuIcon
+                );
+            }catch(Exception)
+            {
+                MelonLogger.Msg("Failed to load ActionMenuAPI, not installed.");
+            }
+
+            
+
+
+
+
             OnPreferencesSaved();
         }
+
+        private static void ChangeBothLegsPos(Vector2 pos)
+        {
+            if (l_solver != null)
+            {
+                l_solver.leftLeg.positionWeight = 1f;
+                l_solver.rightLeg.positionWeight = 1f;
+                l_solver.leftLeg.IKPosition = new Vector3(l_solver.leftLeg.IKPosition.x + pos.x, l_solver.leftLeg.IKPosition.y + pos.y, l_solver.leftLeg.IKPosition.z);
+                l_solver.rightLeg.IKPosition = new Vector3(l_solver.rightLeg.IKPosition.x + pos.x, l_solver.rightLeg.IKPosition.y + pos.y, l_solver.rightLeg.IKPosition.z);
+            }
+        }
+
+        private static void ChangeLeftLegPos(Vector2 pos)
+        {
+            if (l_solver != null)
+            {
+                l_solver.leftLeg.positionWeight = 1f;
+                l_solver.leftLeg.IKPosition = new Vector3(l_solver.leftLeg.IKPosition.x + pos.x, l_solver.leftLeg.IKPosition.y + pos.y, l_solver.leftLeg.IKPosition.z);
+            }
+        }
+
+        private static void ChangeRightLegPos(Vector2 pos)
+        {
+            if (l_solver != null)
+            {
+                l_solver.rightLeg.positionWeight = 1f;
+                l_solver.rightLeg.IKPosition = new Vector3(l_solver.rightLeg.IKPosition.x + pos.x, l_solver.rightLeg.IKPosition.y + pos.y, l_solver.rightLeg.IKPosition.z);
+            }
+        }
+
+        private static void ChangeBothLegsBends(Vector2 pos)
+        {
+            if (l_solver != null)
+            {
+                l_solver.leftLeg.rotationWeight = 1f;
+                l_solver.rightLeg.rotationWeight = 1f;
+                l_solver.leftLeg.IKRotation = new Quaternion(l_solver.leftLeg.IKRotation.x + pos.x, l_solver.leftLeg.IKRotation.y + pos.y, l_solver.leftLeg.IKRotation.z, l_solver.leftLeg.IKRotation.w);
+                l_solver.rightLeg.IKRotation = new Quaternion(l_solver.rightLeg.IKRotation.x + pos.x, l_solver.rightLeg.IKRotation.y + pos.y, l_solver.rightLeg.IKRotation.z, l_solver.rightLeg.IKRotation.w);
+            }
+        }
+
+        private static void ChangeLeftLegBends(Vector2 pos)
+        {
+            if (l_solver != null)
+            {
+                l_solver.leftLeg.rotationWeight = 1f;
+                l_solver.leftLeg.IKRotation = new Quaternion(l_solver.leftLeg.IKRotation.x + pos.x, l_solver.leftLeg.IKRotation.y + pos.y, l_solver.leftLeg.IKRotation.z, l_solver.leftLeg.IKRotation.w);
+            }
+        }
+
+        private static void ChangeRightLegBends(Vector2 pos)
+        {
+            if (l_solver != null)
+            {
+                l_solver.rightLeg.rotationWeight = 1f;
+                l_solver.rightLeg.IKRotation = new Quaternion(l_solver.rightLeg.IKRotation.x + pos.x, l_solver.rightLeg.IKRotation.y + pos.y, l_solver.rightLeg.IKRotation.z, l_solver.rightLeg.IKRotation.w);
+            }
+        }
+
+
+        private static void ChangeFingersLeft(Vector2 pos)
+        {
+            for(int x = 0; x < 5; x++)
+            {
+                m_fingersBends[x] = Mathf.Clamp(m_fingersBends[x] + pos.x/3, 0f, 1f);
+                m_fingersSpreads[x] = Mathf.Clamp(m_fingersSpreads[x] + pos.y/3, 0f, 1f);
+            }
+        }
+
+
+        private static void ChangeFingersRight(Vector2 pos)
+        {
+            for (int x = 5; x < 10; x++)
+            {
+                m_fingersBends[x] = Mathf.Clamp(m_fingersBends[x] + pos.x/3, 0f, 1f);
+                m_fingersSpreads[x] = Mathf.Clamp(m_fingersSpreads[x] + pos.y/3, 0f, 1f);
+            }
+        }
+        private static void ChangeFingersBoth(Vector2 pos)
+        {
+            for (int x = 0; x < 10; x++)
+            {
+                m_fingersBends[x] = Mathf.Clamp(m_fingersBends[x] + pos.x/3, 0f, 1f);
+                m_fingersSpreads[x] = Mathf.Clamp(m_fingersSpreads[x] + pos.y/3, 0f, 1f);
+            }
+        }
+
+        private static void ChangeControlState(bool state)
+        {
+            isReady = state;
+            if (!isReady)
+            {
+                isReady = true;
+                rightHandPosition = new Vector3(-120f, 390f, 65.6f);
+                leftHandPosition = new Vector3(120f, 390f, 65.6f);
+            }
+            else
+            {
+                ResetFingers();
+                isReady = false;
+            }
+        }
+
+
+        private static void ChangeLeftHandPos(Vector2 pos)
+        {
+            leftHandPosition = new Vector3(leftHandPosition.x - pos.x, leftHandPosition.y, leftHandPosition.z - pos.y);
+        }
+
+        private static void ChangeRightHandPos(Vector2 pos)
+        {
+            rightHandPosition = new Vector3(rightHandPosition.x - pos.x, rightHandPosition.y, rightHandPosition.z - pos.y);
+        }
+
+        private static void ChangeBothHandsPos(Vector2 pos)
+        {
+            leftHandPosition = new Vector3(leftHandPosition.x - pos.x, leftHandPosition.y, leftHandPosition.z - pos.y);
+            rightHandPosition = new Vector3(rightHandPosition.x - pos.x, rightHandPosition.y, rightHandPosition.z - pos.y);
+        }
+
+        private static void ChangeBothHandsFB(Vector2 pos)
+        {
+            leftHandPosition = new Vector3(leftHandPosition.x, leftHandPosition.y + pos.y, leftHandPosition.z);
+            rightHandPosition = new Vector3(rightHandPosition.x, rightHandPosition.y + pos.y, rightHandPosition.z);
+        }
+
+        private static void ChangeLeftHandFB(Vector2 pos)
+        {
+            leftHandPosition = new Vector3(leftHandPosition.x, leftHandPosition.y + pos.y, leftHandPosition.z);
+        }
+
+        private static void ChangeRightHandFB(Vector2 pos)
+        {
+            rightHandPosition = new Vector3(leftHandPosition.x, leftHandPosition.y + pos.y, leftHandPosition.z);
+        }
+
+        private static void ChangeHeadRot(Vector2 rot)
+        {
+            cameraTransform.rotation = new Quaternion(
+                cameraTransform.rotation.x,
+                cameraTransform.rotation.y + rot.x,
+                cameraTransform.rotation.z,
+                cameraTransform.rotation.w);
+        }
+
+        //
+        private static AssetBundle iconsAssetBundle = null;
+        private static Texture2D toggleIcon;
+        private static Texture2D radialIcon;
+        private static Texture2D subMenuIcon;
+        private static Texture2D buttonIcon;
+        //
 
 
         bool isHost = true;
@@ -118,6 +395,8 @@ namespace VRCBonesController
             sync_Legs = MelonPreferences.GetEntryValue<bool>("VRCBonesController", "sync_Legs");
             auto_connect = MelonPreferences.GetEntryValue<bool>("VRCBonesController", "auto_connect");
             avatar_sync = MelonPreferences.GetEntryValue<bool>("VRCBonesController", "avatar_sync");
+
+          
             if (!avatar_sync)
                 return;
             listener.ConnectionRequestEvent += ConnectionRequestEvent;
@@ -153,7 +432,7 @@ namespace VRCBonesController
                     else if (isHost && manager == null)
                     {
                         manager = new NetManager(listener);
-                        manager.Start(7777);
+                        manager.Start(host_port);
                     }
                 }
             });
@@ -248,7 +527,7 @@ namespace VRCBonesController
             m_fingersSpreads = null;
         }
 
-        private void ResetFingers()
+        private static void ResetFingers()
         {
             for (int x = 0; x < 10; x++)
             {
@@ -479,6 +758,7 @@ namespace VRCBonesController
             ms_inVrMode = XRDevice.isPresent;
             if (IsManualControl && isReady)
                 ManualControl();
+
             if (isHost && manager != null && avatar_sync)
             {
                 if (manager.ConnectedPeersCount != 0)
@@ -602,7 +882,7 @@ namespace VRCBonesController
                     if (isHost)
                     {
                         manager = new NetManager(listener);
-                        manager.Start(7777);
+                        manager.Start(host_port);
                     }
                     else
                     {
@@ -710,8 +990,8 @@ namespace VRCBonesController
             }
         }
 
-        IKSolverVR l_solver = null;
-        HandGestureController l_handController = null;
+        static IKSolverVR l_solver = null;
+        static HandGestureController l_handController = null;
 
         public override void OnLateUpdate()
         {
