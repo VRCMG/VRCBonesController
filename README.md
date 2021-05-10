@@ -42,7 +42,7 @@ Holding ``LeftShift`` while moving finger changed spread.
 
 ``Scroll wheel`` - changes movement speed.
 
-Holding ``right`` and ``left`` mouse button you can rotate your head
+Holding ``LeftAlt`` you can rotate your head
 
 
 ``ArrowUP`` - Move both hands up.
