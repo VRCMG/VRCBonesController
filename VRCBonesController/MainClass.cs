@@ -701,7 +701,7 @@ namespace VRCBonesController
                     moveSpeed = moveSpeed + 0.1f;
             }
             //Head Rotation
-            if (Input.GetMouseButton(1) && Input.GetMouseButton(0))
+            if (Input.GetKey(KeyCode.LeftAlt))
             {
                 cameraTransform.RotateAround(cameraTransform.position, headMoveType == 0 ? cameraTransform.forward
                     : headMoveType == 1 ? cameraTransform.up : -cameraTransform.forward, Input.GetAxis("Mouse X") * moveSpeedHead);
